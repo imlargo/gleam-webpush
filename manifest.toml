@@ -7,7 +7,8 @@ packages = [
   { name = "gleam_httpc", version = "5.0.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_http", "gleam_stdlib"], otp_app = "gleam_httpc", source = "hex", outer_checksum = "C545172618D07811494E97AAA4A0FB34DA6F6D0061FDC8041C2F8E3BE2B2E48F" },
   { name = "gleam_stdlib", version = "0.62.1", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "0080706D3A5A9A36C40C68481D1D231D243AF602E6D2A2BE67BA8F8F4DFF45EC" },
   { name = "gleeunit", version = "1.6.1", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleeunit", source = "hex", outer_checksum = "FDC68A8C492B1E9B429249062CD9BAC9B5538C6FBF584817205D0998C42E1DAC" },
-  { name = "jose", version = "1.11.10", build_tools = ["mix", "rebar3"], requirements = [], otp_app = "jose", source = "hex", outer_checksum = "0D6CD36FF8BA174DB29148FC112B5842186B68A90CE9FC2B3EC3AFE76593E614" },
+  { name = "jiffy", version = "1.1.2", build_tools = ["rebar3"], requirements = [], otp_app = "jiffy", source = "hex", outer_checksum = "BB61BC42A720BBD33CB09A410E48BB79A61012C74CB8B3E75F26D988485CF381" },
+  { name = "jose", version = "1.11.9", build_tools = ["mix", "rebar3"], requirements = [], otp_app = "jose", source = "hex", outer_checksum = "B5CCC3749D2E1638C26BED806259DF5BC9E438797FE60DC71E9FA0716133899B" },
 ]
 
 [requirements]
@@ -15,4 +16,5 @@ gleam_http = { version = ">= 4.1.1 and < 5.0.0" }
 gleam_httpc = { version = ">= 5.0.0 and < 6.0.0" }
 gleam_stdlib = { version = ">= 0.44.0 and < 2.0.0" }
 gleeunit = { version = ">= 1.0.0 and < 2.0.0" }
-jose = { version = ">= 1.11.10 and < 2.0.0" }
+jiffy = { version = ">= 1.1.2 and < 2.0.0" }
+jose = { version = ">= 1.11.8 and < 1.11.10" }
