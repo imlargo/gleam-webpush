@@ -1,10 +1,34 @@
+import gleam/bit_array
 import gleam/io
-import webpush/vapid
+import gleam/option
+import webpush/push
+import webpush/urgency
 
 pub fn main() {
-  let assert Ok(keys) = vapid.generate_vapid_keys()
+  let sub =
+    push.Subscription("subhere", push.Keys(auth: "authhere", p256dh: "p2here"))
 
-  io.println("Generated VAPID keys")
-  io.println("Private Key: " <> keys.private_key_b64url)
-  io.println("Public Key: " <> keys.public_key_b64url)
+  let opts =
+    push.Options(
+      ttl: 30,
+      subscriber: "test@gmail.com",
+      vapid_public_key_b64url: "key",
+      vapid_private_key_b64url: "key",
+      topic: option.None,
+      urgency: option.Some(urgency.Normal),
+      record_size: option.None,
+      vapid_expiration_unix: option.None,
+    )
+
+  let payload =
+    "{\"title\":\"Hi from gleam\",\"message\":\"Hi imlargo!\",\"category\":\"imlargo\"}"
+  let message = bit_array.from_string(payload)
+
+  case push.send_notification(message, sub, opts) {
+    Ok(resp) -> resp.status
+    Error(e) -> {
+      io.println(push.push_error_to_string(e))
+      1
+    }
+  }
 }
