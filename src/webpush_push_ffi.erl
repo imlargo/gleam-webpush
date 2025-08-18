@@ -1,5 +1,5 @@
-%% Erlang FFI para cifrado Web Push (RFC8291) + HKDF + AES-128-GCM.
-%% Depende de: crypto (OTP 24+).
+%% Erlang FFI para cifrado Web Push (RFC8291) + ECDH + AES-GCM.
+%% No dependency on crypto:hkdf/5 (HKDF implemented manually).
 -module(webpush_push_ffi).
 -export([encrypt_payload/4]).
 
@@ -9,6 +9,8 @@
       -> {ok, binary()} | {error, binary()}.
 encrypt_payload(Message, PeerPub, AuthSecret, RecordSize0) ->
   try
+    ensure_crypto(),
+
     %% 0) Parámetros
     RecordSize = case RecordSize0 of 0 -> ?MAX_RECORD_SIZE; _ -> RecordSize0 end,
     RecordLen  = RecordSize - 16,
@@ -24,18 +26,18 @@ encrypt_payload(Message, PeerPub, AuthSecret, RecordSize0) ->
     <<4, _/binary>> = PeerPub,
     Secret = crypto:compute_key(ecdh, PeerPub, LocalPriv, prime256v1),
 
-    %% 4) HKDF (PRK/IKM) según RFC8291
+    %% 4) HKDF-Expand para obtener IKM (32 bytes) como en RFC8291
+    %%    IKM = HKDF(sha256, ikm=Secret, salt=AuthSecret, info="WebPush: info\0 || dh || pub")
     PRKInfo = << "WebPush: info", 0, PeerPub/binary, LocalPub/binary >>,
-    IKM = crypto:hkdf(sha256, Secret, AuthSecret, PRKInfo, 32),
+    IKM = hkdf_expand(Secret, AuthSecret, PRKInfo, 32),
 
-    %% 5) Derivar CEK y Nonce
+    %% 5) CEK (16) y Nonce (12) desde IKM con salt=Salt
     CEKInfo   = << "Content-Encoding: aes128gcm", 0 >>,
     NonceInfo = << "Content-Encoding: nonce", 0   >>,
-    CEK   = crypto:hkdf(sha256, IKM, Salt, CEKInfo,   16),
-    Nonce = crypto:hkdf(sha256, IKM, Salt, NonceInfo, 12),
+    CEK   = hkdf_expand(IKM, Salt, CEKInfo,   16),
+    Nonce = hkdf_expand(IKM, Salt, NonceInfo, 12),
 
-    %% 6) Construir cabecera de registro (sin ciphertext)
-    %%    header = Salt(16) + RS(4) + id_len(1) + LocalPub(65)
+    %% 6) Cabecera + cálculo de padding
     HeaderLen = 16 + 4 + 1 + byte_size(LocalPub),
 
     %% 7) Datos: mensaje + 0x02 + padding con ceros
@@ -46,15 +48,15 @@ encrypt_payload(Message, PeerPub, AuthSecret, RecordSize0) ->
       false -> throw(max_pad_exceeded);
       true ->
         PadLen = Required - Data0Len,
-        Padding = case PadLen of 0 -> <<>>; _ -> <<0:8*PadLen>> end,
+        Padding = case PadLen of 0 -> <<>>; _ -> binary:copy(<<0>>, PadLen) end,
         Data = << Data0/binary, Padding/binary >>,
 
-        %% 8) AES-128-GCM sin AAD, concatenando Tag (16) al final
+        %% 8) AES-GCM sin AAD (usa 'aes_gcm', key de 16 => AES-128-GCM)
         {Cipher, Tag} =
-          crypto:crypto_one_time_aead(aes_128_gcm, CEK, Nonce, Data, <<>>, 16, true),
+          crypto:crypto_one_time_aead(aes_gcm, CEK, Nonce, Data, <<>>, 16, true),
         Ciphertext = << Cipher/binary, Tag/binary >>,
 
-        %% 9) Ensamblar registro completo para HTTP body
+        %% 9) Cuerpo: Salt | RS | id_len | LocalPub | Ciphertext
         Body = <<
           Salt/binary,
           RecordSize:32/big-unsigned-integer,
@@ -71,3 +73,25 @@ encrypt_payload(Message, PeerPub, AuthSecret, RecordSize0) ->
       Reason = unicode:characters_to_binary(io_lib:format("~p:~p", [C, R])),
       {error, Reason}
   end.
+
+%% -------------------------------------------------------------------
+%% Helpers
+%% -------------------------------------------------------------------
+
+ensure_crypto() ->
+  _ = application:ensure_all_started(crypto),
+  ok.
+
+%% HKDF (RFC5869) con SHA-256:
+%% PRK = HMAC(Salt, IKM)
+%% T(0)=<<>>, T(i)=HMAC(PRK, T(i-1) || Info || <<i>>), concat hasta Length
+-spec hkdf_expand(binary(), binary(), binary(), non_neg_integer()) -> binary().
+hkdf_expand(IKM, Salt, Info, Length) ->
+  PRK = crypto:mac(hmac, sha256, Salt, IKM),
+  hkdf_expand_loop(PRK, Info, Length, 1, <<>>, <<>>).
+
+hkdf_expand_loop(_PRK, _Info, Length, _I, _Tprev, Acc) when byte_size(Acc) >= Length ->
+  binary:part(Acc, 0, Length);
+hkdf_expand_loop(PRK, Info, Length, I, Tprev, Acc) ->
+  T = crypto:mac(hmac, sha256, PRK, <<Tprev/binary, Info/binary, I:8/integer>>),
+  hkdf_expand_loop(PRK, Info, Length, I+1, T, <<Acc/binary, T/binary>>).
