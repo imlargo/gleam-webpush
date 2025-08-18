@@ -23,10 +23,10 @@ pub type VapidKeys {
 
 // ---------- Externals (FFI) ----------
 
-@external(erlang, "webpush_vapid_ffi.erl", "p256_generate_key")
+@external(erlang, "webpush_vapid_ffi", "p256_generate_key")
 fn p256_generate_key() -> Result(#(BitArray, BitArray), String)
 
-@external(erlang, "webpush_vapid_ffi.erl", "jwt_es256_sign")
+@external(erlang, "webpush_vapid_ffi", "jwt_es256_sign")
 fn jwt_es256_sign(
   aud: String,
   exp_unix: Int,
@@ -34,7 +34,7 @@ fn jwt_es256_sign(
   priv_key: BitArray,
 ) -> Result(String, String)
 
-@external(erlang, "webpush_vapid_ffi.erl", "now_unix")
+@external(erlang, "webpush_vapid_ffi", "now_unix")
 pub fn now_unix() -> Int
 
 // ---------- Public API ----------
