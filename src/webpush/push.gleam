@@ -42,6 +42,18 @@ pub type PushError {
   MaxPadExceeded
 }
 
+pub fn push_error_to_string(error: PushError) -> String {
+  case error {
+    DecodeKeyError -> "Failed to decode key"
+    InvalidPeerPublicKey -> "Invalid peer public key format"
+    CryptoError(msg) -> "Crypto error: " <> msg
+    HttpError(msg) -> "HTTP error: " <> msg
+    VapidHeaderError(vapid_err) ->
+      "VAPID header error: " <> vapid.vapid_error_to_string(vapid_err)
+    MaxPadExceeded -> "Payload has exceeded the maximum length"
+  }
+}
+
 // ---------- FFI cripto (Erlang) ----------
 @external(erlang, "webpush_push_ffi", "encrypt_payload")
 fn encrypt_payload(

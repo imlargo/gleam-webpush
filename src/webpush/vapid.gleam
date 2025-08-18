@@ -16,6 +16,15 @@ pub type VapidError {
   CryptoError(String)
 }
 
+pub fn vapid_error_to_string(error: VapidError) -> String {
+  case error {
+    InvalidEndpoint(endpoint) -> "Invalid endpoint: " <> endpoint
+    DecodeKeyError -> "Failed to decode VAPID key"
+    UnknownError(msg) -> "Unknown VAPID error: " <> msg
+    CryptoError(msg) -> "VAPID crypto error: " <> msg
+  }
+}
+
 /// VAPID key pair in Base64URL (unpadded), as required by Web Push.
 pub type VapidKeys {
   VapidKeys(private_key_b64url: String, public_key_b64url: String)
