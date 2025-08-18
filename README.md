@@ -1,20 +1,20 @@
-# gleamwebpush
+# webpush
 
-[![Package Version](https://img.shields.io/hexpm/v/gleamwebpush)](https://hex.pm/packages/gleamwebpush)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/gleamwebpush/)
+[![Package Version](https://img.shields.io/hexpm/v/webpush)](https://hex.pm/packages/webpush)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/webpush/)
 
 ```sh
-gleam add gleamwebpush@1
+gleam add webpush@1
 ```
 ```gleam
-import gleamwebpush
+import webpush
 
 pub fn main() -> Nil {
   // TODO: An example of the project in use
 }
 ```
 
-Further documentation can be found at <https://hexdocs.pm/gleamwebpush>.
+Further documentation can be found at <https://hexdocs.pm/webpush>.
 
 ## Development
 
