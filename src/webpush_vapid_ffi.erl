@@ -44,6 +44,7 @@ p256_generate_key() ->
 %% Aud (binary), ExpUnix (integer), Sub (binary), Priv (32-byte binary)
 %% -> {ok, CompactJWTBinary} | {error, ReasonBinary}
 %%--------------------------------------------------------------------
+%% Sign a compact JWT (ES256) with given claims using erlang-jose.
 -spec jwt_es256_sign(binary(), integer(), binary(), binary()) ->
         {ok, binary()} | {error, binary()}.
 jwt_es256_sign(Aud, ExpUnix, Sub, Priv) ->
@@ -62,13 +63,17 @@ jwt_es256_sign(Aud, ExpUnix, Sub, Priv) ->
       <<"x">>   => B64(X),
       <<"y">>   => B64(Y)
     },
-    {ok, JWK} = jose_jwk:from_map(JWKMap),
+
+    %% OJO: from_map NO devuelve {ok, ...}
+    {JWK, _Fields} = jose_jwk:from_map(JWKMap),
 
     Header = #{<<"alg">> => <<"ES256">>, <<"typ">> => <<"JWT">>},
     Claims = #{<<"aud">> => Aud, <<"exp">> => ExpUnix, <<"sub">> => Sub},
 
     JWS = jose_jwt:sign(JWK, Header, Claims),
-    {ok, CompactBin} = jose_jws:compact(JWS),
+
+    %% OJO: compact devuelve el binario directamente
+    CompactBin = jose_jws:compact(JWS),
     {ok, CompactBin}
   catch
     C:R ->

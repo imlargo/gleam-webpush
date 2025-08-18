@@ -74,12 +74,12 @@ pub fn send_notification(
   message: BitArray,
   sub: Subscription,
   opts: Options,
-) -> Result(response.Response(String), PushError) {
-  // 1) Decodificar claves de suscripción
+) -> Result(response.Response(BitArray), PushError) {
+  // 1) Decodificar claves
   use auth_secret <- result.try(decode_subscription_key(sub.keys.auth))
   use peer_pub <- result.try(decode_subscription_key(sub.keys.p256dh))
 
-  // Comprobar que sea punto no comprimido (65 bytes, empieza en 0x04)
+  // Verificar punto no comprimido (0x04 | X | Y)
   let valid_pub =
     bit_array.byte_size(peer_pub) >= 65
     && bit_array.slice(peer_pub, 0, 1) == Ok(bit_array.from_string("\u{04}"))
@@ -87,7 +87,7 @@ pub fn send_notification(
   case valid_pub {
     False -> Error(InvalidPeerPublicKey)
     True -> {
-      // 2) Cifrar payload y construir cuerpo (salt + rs + pub + ciphertext)
+      // 2) Cifrar payload
       let record_size = case opts.record_size {
         option.Some(n) -> n
         option.None -> max_record_size
@@ -98,11 +98,10 @@ pub fn send_notification(
         |> result.map_error(CryptoError),
       )
 
-      // 3) Header de autorización VAPID
+      // 3) VAPID
       let exp = case opts.vapid_expiration_unix {
         option.Some(e) -> e
         option.None -> vapid.now_unix() + 60 * 60 * 12
-        // 12h por defecto
       }
 
       use auth_header <- result.try(
@@ -116,24 +115,27 @@ pub fn send_notification(
         |> result.map_error(VapidHeaderError),
       )
 
-      use body_string <- result.try(
-        bit_array.to_string(body) |> result.map_error(fn(_) { HttpError("") }),
+      // 4) Construir Request a partir de la URL completa
+      use req0 <- result.try(
+        request.to(sub.endpoint)
+        |> result.map_error(fn(_) { HttpError("invalid endpoint url") }),
       )
 
-      // 4) Construir y enviar la petición HTTP POST
       let req =
-        request.new()
+        req0
         |> request.set_method(http.Post)
-        |> request.set_host(sub.endpoint)
-        |> request.set_header("Content-Encoding", "aes128gcm")
-        |> request.set_header("Content-Type", "application/octet-stream")
-        |> request.set_header("TTL", int.to_string(opts.ttl))
+        // IMPORTANTES: headers en minúsculas
+        |> request.set_header("content-encoding", "aes128gcm")
+        |> request.set_header("content-type", "application/octet-stream")
+        |> request.set_header("ttl", int.to_string(opts.ttl))
         |> set_topic(opts.topic)
         |> set_urgency(opts.urgency)
-        |> request.set_header("Authorization", auth_header)
-        |> request.set_body(body_string)
+        |> request.set_header("authorization", auth_header)
+        // Body binario => cambia el tipo del Request a Request(BitArray)
+        |> request.set_body(body)
 
-      case httpc.send(req) {
+      // Enviar binario
+      case httpc.send_bits(req) {
         Ok(resp) -> Ok(resp)
         Error(_) -> Error(HttpError("http error"))
       }
@@ -141,22 +143,24 @@ pub fn send_notification(
   }
 }
 
+// Helpers genéricos sobre el tipo del body
 fn set_topic(
-  req: request.Request(String),
+  req: request.Request(a),
   topic: option.Option(String),
-) -> request.Request(String) {
+) -> request.Request(a) {
   case topic {
-    option.Some(t) -> request.set_header(req, "Topic", t)
+    option.Some(t) -> request.set_header(req, "topic", t)
     option.None -> req
   }
 }
 
 fn set_urgency(
-  req: request.Request(String),
-  urgency: option.Option(urgency.Urgency),
-) -> request.Request(String) {
-  case urgency {
-    option.Some(u) -> request.set_header(req, "Urgency", urgency.to_string(u))
+  req: request.Request(a),
+  u: option.Option(urgency.Urgency),
+) -> request.Request(a) {
+  case u {
+    option.Some(val) ->
+      request.set_header(req, "urgency", urgency.to_string(val))
     option.None -> req
   }
 }
