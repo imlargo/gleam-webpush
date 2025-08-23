@@ -1,3 +1,9 @@
+/// Represents the urgency level for a web push notification.
+/// 
+/// - `VeryLow`: Indicates the lowest urgency.
+/// - `Low`: Indicates a low urgency.
+/// - `Normal`: Indicates a normal urgency.
+/// - `High`: Indicates the highest urgency.
 pub type Urgency {
   VeryLow
   Low
