@@ -49,11 +49,11 @@ p256_generate_key() ->
         {ok, binary()} | {error, binary()}.
 jwt_es256_sign(Aud, ExpUnix, Sub, Priv) ->
   try
-    ensure_runtime(),          %% crypto + jose + json module listos
+    ensure_runtime(),          %% crypto + jose + json modules ready
 
-    %% Derivar pública desde privada (P-256)
+    %% Derive public key from private (P-256)
     {Pub, _} = crypto:generate_key(ecdh, prime256v1, Priv),
-    %% Punto no comprimido <<4, X:32, Y:32>>
+    %% Uncompressed point <<4, X:32, Y:32>>
     <<4, X:32/binary, Y:32/binary>> = Pub,
 
     B64 = fun(Bin) -> jose_base64url:encode(Bin) end,
@@ -66,7 +66,7 @@ jwt_es256_sign(Aud, ExpUnix, Sub, Priv) ->
       <<"y">>   => B64(Y)
     },
 
-    %% from_map puede devolver JWK o {JWK, Fields}
+    %% from_map can return JWK or {JWK, Fields}
     JWK0 = jose_jwk:from_map(JWKMap),
     JWK = case JWK0 of
             {JW, _Fields} -> JW;
@@ -78,10 +78,10 @@ jwt_es256_sign(Aud, ExpUnix, Sub, Priv) ->
 
     JWS = jose_jwt:sign(JWK, Header, Claims),
 
-    %% compact puede ser:
+    %% compact can be:
     %%   Bin
     %% | {ok, Bin}
-    %% | {Meta, Bin} (p.ej. #{alg => jose_jws_alg_ecdsa}, Bin)
+    %% | {Meta, Bin} (e.g. #{alg => jose_jws_alg_ecdsa}, Bin)
     Compact0 = jose_jws:compact(JWS),
     CompactBin =
       case Compact0 of
@@ -105,7 +105,7 @@ ensure_runtime() ->
   _ = application:ensure_all_started(crypto),
   _ = application:ensure_all_started(public_key),
   _ = application:ensure_all_started(jose),
-  %% Intenta arrancar jiffy si existe (no falla si no está)
+  %% Try to start jiffy if it exists (does not fail if not present)
   _ = case code:which(jiffy) of
         non_existing -> ok;
         _ -> application:ensure_all_started(jiffy)
@@ -114,9 +114,9 @@ ensure_runtime() ->
 
 ensure_json_module() ->
   case application:get_env(jose, json_module) of
-    {ok, _Mod} -> ok;  %% ya configurado
+    {ok, _Mod} -> ok;  %% already configured
     undefined ->
-      %% preferencia: jiffy -> jsone -> thoas
+      %% preference: jiffy -> jsone -> thoas
       case code:which(jose_json_jiffy) of
         non_existing ->
           case code:which(jose_json_jsone) of
@@ -130,3 +130,4 @@ ensure_json_module() ->
         _ -> application:set_env(jose, json_module, jose_json_jiffy)
       end
   end.
+
