@@ -30,6 +30,30 @@ gleam add webpush@1
 
 ### Basic Usage
 
+#### Generate Keys
+
+Using the library to generate VAPID keys:
+
+> Note: Do this once and store the keys securely.
+
+```gleam
+import gleam/io
+import webpush/vapid
+
+pub fn main() {
+  // Generate VAPID keys (do this once, store securely)
+  let assert Ok(keys) = vapid.generate_vapid_keys()
+
+  io.println("VAPID keys generated successfully!")
+  io.println("Public Key: " <> keys.public_key_b64url)
+  io.println("Private Key: " <> keys.private_key_b64url)
+}
+```
+
+#### Send Notification
+
+Using the library to send a push notification:
+
 ```gleam
 import gleam/bit_array
 import gleam/option
@@ -38,8 +62,6 @@ import webpush/urgency
 import webpush/vapid
 
 pub fn main() {
-  // 1. Generate VAPID keys (do this once, store securely)
-  let assert Ok(keys) = vapid.generate_vapid_keys()
   
   // 2. Create subscription (from your frontend)
   let subscription = push.Subscription(
@@ -54,8 +76,8 @@ pub fn main() {
   let options = push.Options(
     ttl: 3600,                                    // 1 hour
     subscriber: "mailto:your-email@example.com",   // Your contact info
-    vapid_public_key_b64url: keys.public_key_b64url,
-    vapid_private_key_b64url: keys.private_key_b64url,
+    vapid_public_key_b64url: "YOUR_PUBLIC_KEY",
+    vapid_private_key_b64url: "YOUR_PRIVATE_KEY",
     topic: option.Some("updates"),
     urgency: option.Some(urgency.Normal),
     record_size: option.None,                     // Use default (4096)
@@ -84,7 +106,7 @@ pub fn main() {
 
 ### Key Functions
 
-#### `push.send_notification/3`
+#### `push.send_notification`
 Send a push notification:
 
 ```gleam
@@ -95,7 +117,7 @@ pub fn send_notification(
 ) -> Result(response.Response(BitArray), PushError)
 ```
 
-#### `vapid.generate_vapid_keys/0`
+#### `vapid.generate_vapid_keys`
 Generate new VAPID key pair:
 
 ```gleam
