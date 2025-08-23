@@ -75,7 +75,7 @@ pub fn main() {
   // 3. Configure push options
   let options = push.Options(
     ttl: 3600,                                    // 1 hour
-    subscriber: "mailto:your-email@example.com",   // Your contact info
+    subscriber: "mailto:your-email@example.com",   // Your contact info (can be email or web URL)
     vapid_public_key_b64url: "YOUR_PUBLIC_KEY",
     vapid_private_key_b64url: "YOUR_PRIVATE_KEY",
     topic: option.Some("updates"),
