@@ -8,10 +8,6 @@ The **first** and **complete** Web Push notification library for Gleam! 🎉
 
 Send encrypted push notifications to web browsers using the Web Push Protocol (RFC 8291) with full VAPID (RFC 8292) support.
 
-```sh
-gleam add webpush@1
-```
-
 ## ✨ Features
 
 - 🔐 **RFC 8291 compliant encryption** with AES-128-GCM
@@ -26,11 +22,10 @@ gleam add webpush@1
 
 ### Installation
 
-Add `webpush` to your `gleam.toml`:
+Add `webpush` to your project:
 
-```toml
-[dependencies]
-webpush = "~> 1.0"
+```sh
+gleam add webpush@1
 ```
 
 ### Basic Usage
