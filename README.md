@@ -8,6 +8,22 @@ The **first** and **complete** Web Push notification library for Gleam! 🎉
 
 Send encrypted push notifications to web browsers using the Web Push Protocol (RFC 8291) with full VAPID (RFC 8292) support.
 
+## Current Status
+
+#### ✅ Working features:
+
+- Basic Web Push notification sending
+- VAPID key generation and management
+- Tested and working with real notifications
+
+#### ⚠️ Work in progress:
+
+- Adding comprehensive test coverage
+- Improving documentation and examples
+- Continuous improvements and refinements
+
+>  Note: This library is not yet production-ready but is functional for basic use cases. I'm actively working on improvements and would appreciate feedback from the community. Also i'm relatively new to Gleam and still learning the language, so if anyone notices areas for improvement in the code, feedback would be very welcome! I'm committed to continuously improving this library.
+
 ## ✨ Features
 
 - 🔐 **RFC 8291 compliant encryption** with AES-128-GCM
