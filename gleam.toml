@@ -2,7 +2,7 @@ name = "webpush"
 version = "1.0.0"
 target = "erlang"
 description = "A Gleam library for web push notifications"
-licences = ["Apache-2.0"]
+licences = ["MIT"]
 repository = { type = "github", user = "imlargo", repo = "gleam-webpush" }
 links = [{ title = "Website", href = "https://github.com/imlargo/gleam-webpush" }]
 
