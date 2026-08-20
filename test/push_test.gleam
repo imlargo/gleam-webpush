@@ -159,6 +159,22 @@ pub fn non_uncompressed_public_key_is_rejected_test() {
     == Error(push.InvalidPeerPublicKey)
 }
 
+pub fn oversized_public_key_is_rejected_test() {
+  let recipient = recipient()
+  let padded = bit_array.append(recipient.public_key, <<0>>)
+  let subscription =
+    push.Subscription(
+      endpoint: endpoint,
+      keys: push.Keys(
+        auth: bit_array.base64_url_encode(auth_secret, False),
+        p256dh: bit_array.base64_url_encode(padded, False),
+      ),
+    )
+
+  assert push.send_notification(<<"hi">>, subscription, options())
+    == Error(push.InvalidPeerPublicKey)
+}
+
 pub fn invalid_endpoint_is_rejected_test() {
   let recipient = recipient()
   let subscription =

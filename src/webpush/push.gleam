@@ -138,10 +138,12 @@ pub fn send_notification(
   use auth_secret <- result.try(decode_subscription_key(sub.keys.auth))
   use peer_pub <- result.try(decode_subscription_key(sub.keys.p256dh))
 
-  // Verify uncompressed point (0x04 | X | Y)
-  let valid_pub =
-    bit_array.byte_size(peer_pub) >= 65
-    && bit_array.slice(peer_pub, 0, 1) == Ok(bit_array.from_string("\u{04}"))
+  // An uncompressed P-256 point is exactly 0x04 followed by the 32 byte X and
+  // Y coordinates.
+  let valid_pub = case peer_pub {
+    <<4, _:bytes-size(64)>> -> True
+    _ -> False
+  }
 
   case valid_pub {
     False -> Error(InvalidPeerPublicKey)
