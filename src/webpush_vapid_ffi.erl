@@ -1,6 +1,6 @@
 %% Erlang FFI helpers for Gleam VAPID utilities.
 %% File: webpush_vapid_ffi.erl
-%% Requires: crypto, erlang-jose
+%% Requires: crypto, public_key and the built in json module (OTP 27+)
 -module(webpush_vapid_ffi).
 
 -export([p256_generate_key/0, jwt_es256_sign/4, now_unix/0]).
@@ -40,59 +40,23 @@ p256_generate_key() ->
   end.
 
 %%--------------------------------------------------------------------
-%% Sign a compact JWT (ES256) with given claims using erlang-jose.
+%% Sign a compact JWT (ES256) with the given claims.
 %% Aud (binary), ExpUnix (integer), Sub (binary), Priv (32-byte binary)
 %% -> {ok, CompactJWTBinary} | {error, ReasonBinary}
 %%--------------------------------------------------------------------
-%% Sign a compact JWT (ES256) with given claims using erlang-jose.
 -spec jwt_es256_sign(binary(), integer(), binary(), binary()) ->
         {ok, binary()} | {error, binary()}.
 jwt_es256_sign(Aud, ExpUnix, Sub, Priv) ->
   try
-    ensure_runtime(),          %% crypto + jose + json modules ready
-
-    %% Derive public key from private (P-256)
-    {Pub, _} = crypto:generate_key(ecdh, prime256v1, Priv),
-    %% Uncompressed point <<4, X:32, Y:32>>
-    <<4, X:32/binary, Y:32/binary>> = Pub,
-
-    B64 = fun(Bin) -> jose_base64url:encode(Bin) end,
-
-    JWKMap = #{
-      <<"kty">> => <<"EC">>,
-      <<"crv">> => <<"P-256">>,
-      <<"d">>   => B64(Priv),
-      <<"x">>   => B64(X),
-      <<"y">>   => B64(Y)
-    },
-
-    %% from_map can return JWK or {JWK, Fields}
-    JWK0 = jose_jwk:from_map(JWKMap),
-    JWK = case JWK0 of
-            {JW, _Fields} -> JW;
-            JW -> JW
-          end,
-
-    Header = #{<<"alg">> => <<"ES256">>, <<"typ">> => <<"JWT">>},
-    Claims = #{<<"aud">> => Aud, <<"exp">> => ExpUnix, <<"sub">> => Sub},
-
-    JWS = jose_jwt:sign(JWK, Header, Claims),
-
-    %% compact can be:
-    %%   Bin
-    %% | {ok, Bin}
-    %% | {Meta, Bin} (e.g. #{alg => jose_jws_alg_ecdsa}, Bin)
-    Compact0 = jose_jws:compact(JWS),
-    CompactBin =
-      case Compact0 of
-        Bin when is_binary(Bin) -> Bin;
-        {ok, Bin} when is_binary(Bin) -> Bin;
-        {_Meta, Bin} when is_binary(Bin) -> Bin;
-        Other ->
-          erlang:error({unexpected_compact_return, Other})
-      end,
-
-    {ok, CompactBin}
+    Header = json_encode(#{<<"typ">> => <<"JWT">>, <<"alg">> => <<"ES256">>}),
+    Claims = json_encode(#{
+      <<"aud">> => Aud,
+      <<"exp">> => ExpUnix,
+      <<"sub">> => Sub
+    }),
+    Signed = <<(b64url(Header))/binary, $., (b64url(Claims))/binary>>,
+    Signature = es256_sign(Signed, Priv),
+    {ok, <<Signed/binary, $., (b64url(Signature))/binary>>}
   catch
     C:R ->
       Reason = unicode:characters_to_binary(io_lib:format("~p:~p", [C, R])),
@@ -101,33 +65,21 @@ jwt_es256_sign(Aud, ExpUnix, Sub, Priv) ->
 
 %% ---- helpers ----
 
-ensure_runtime() ->
-  _ = application:ensure_all_started(crypto),
-  _ = application:ensure_all_started(public_key),
-  _ = application:ensure_all_started(jose),
-  %% Try to start jiffy if it exists (does not fail if not present)
-  _ = case code:which(jiffy) of
-        non_existing -> ok;
-        _ -> application:ensure_all_started(jiffy)
-      end,
-  ensure_json_module().
+%% crypto:sign/4 returns the DER SEQUENCE {r, s}, but JWS (RFC 7515) wants the
+%% two values concatenated and each zero padded to 32 bytes. DER drops leading
+%% zero bytes and adds one when the high bit is set, so redo the padding here.
+es256_sign(Signed, Priv) ->
+  Der = crypto:sign(ecdsa, sha256, Signed, [Priv, prime256v1]),
+  {'ECDSA-Sig-Value', R, S} = public_key:der_decode('ECDSA-Sig-Value', Der),
+  <<(coordinate(R))/binary, (coordinate(S))/binary>>.
 
-ensure_json_module() ->
-  case application:get_env(jose, json_module) of
-    {ok, _Mod} -> ok;  %% already configured
-    undefined ->
-      %% preference: jiffy -> jsone -> thoas
-      case code:which(jose_json_jiffy) of
-        non_existing ->
-          case code:which(jose_json_jsone) of
-            non_existing ->
-              case code:which(jose_json_thoas) of
-                non_existing -> erlang:error(unsupported_json_module);
-                _ -> application:set_env(jose, json_module, jose_json_thoas)
-              end;
-            _ -> application:set_env(jose, json_module, jose_json_jsone)
-          end;
-        _ -> application:set_env(jose, json_module, jose_json_jiffy)
-      end
-  end.
+coordinate(Value) ->
+  Bin = binary:encode_unsigned(Value, big),
+  Pad = 32 - byte_size(Bin),
+  <<0:(Pad * 8), Bin/binary>>.
 
+b64url(Data) ->
+  base64:encode(Data, #{mode => urlsafe, padding => false}).
+
+json_encode(Term) ->
+  iolist_to_binary(json:encode(Term)).
