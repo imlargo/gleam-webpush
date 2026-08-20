@@ -25,3 +25,6 @@ jobs:
       - run: gleam build
       - run: gleam test
       - run: gleam format --check src test
+      - name: Build the examples against the local library
+        working-directory: examples
+        run: gleam build

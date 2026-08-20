@@ -1,24 +1,23 @@
-# examples
+# webpush examples
 
-[![Package Version](https://img.shields.io/hexpm/v/examples)](https://hex.pm/packages/examples)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/examples/)
+Runnable examples for the [`webpush`](https://github.com/imlargo/gleam-webpush)
+library. They depend on the library in the parent directory, so they always
+build against the current source rather than the last release.
 
-```sh
-gleam add examples@1
-```
-```gleam
-import examples
+## Generate VAPID keys
 
-pub fn main() -> Nil {
-  // TODO: An example of the project in use
-}
-```
-
-Further documentation can be found at <https://hexdocs.pm/examples>.
-
-## Development
+Do this once and store the keys. The public key is also what the browser needs
+when it subscribes.
 
 ```sh
-gleam run   # Run the project
-gleam test  # Run the tests
+gleam run -m generate_keys/generate_keys
+```
+
+## Send a notification
+
+Fill in the subscription and the VAPID keys in
+`src/send_notification/send_notification.gleam`, then:
+
+```sh
+gleam run -m send_notification/send_notification
 ```
