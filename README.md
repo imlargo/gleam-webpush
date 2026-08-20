@@ -160,8 +160,8 @@ The Gleam layer provides type safety and ergonomic APIs while leveraging Erlang'
 ## Development
 
 ```sh
-gleam run   # Run the project
-gleam test  # Run the tests
+gleam test        # Run the tests
+gleam docs build  # Build the documentation
 ```
 
 ## 🤝 Contributing
