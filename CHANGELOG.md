@@ -25,9 +25,18 @@ Requires Erlang/OTP 27 or later.
   OpenSSL, surfacing as `CryptoError("error:{error,{\"ecdh.c\",80},...")`
   instead of `InvalidPeerPublicKey`.
 - The package declared the Apache-2.0 licence to Hex while the project is MIT.
+- `MaxPadExceeded` was declared and documented but nothing ever returned it. A
+  message too large for the record surfaced as
+  `CryptoError("payload has exceeded the maximum length")` instead.
+
+### Removed
+
+- `VapidError.UnknownError`, which was never constructed.
 
 ### Added
 
+- `push.max_payload_size`, the largest message that fits in a record of a given
+  size. With the default record size the limit is 3993 bytes.
 - A test suite covering VAPID key generation, JWT signing and payload
   encryption. Signatures are verified with OTP's ECDSA and payloads are
   decrypted with an independent implementation of the receiving side, rather
@@ -38,6 +47,10 @@ Requires Erlang/OTP 27 or later.
 
 No function signatures changed. If you imported the `webpush` module itself,
 import the submodules instead. Make sure you are on OTP 27 or later.
+
+Two error values moved: an oversized payload now returns `MaxPadExceeded`
+rather than `CryptoError`, and `VapidError.UnknownError` no longer exists, so
+a `case` over `VapidError` that matched it needs that branch removed.
 
 ## v1.0.0
 

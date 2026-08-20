@@ -16,7 +16,7 @@ jobs:
       matrix:
         otp: ["27.x", "28.x", "29.x"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ matrix.otp }}
