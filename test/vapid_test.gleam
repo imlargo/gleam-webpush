@@ -234,6 +234,46 @@ pub fn subscriber_is_trimmed_test() {
   assert field(claims, "sub", decode.string) == Ok("mailto:test@example.com")
 }
 
+pub fn mismatched_key_pair_is_rejected_test() {
+  // Erlang's crypto signs with any 32 byte value, so a private key from a
+  // different pair still produces a header; the push service then rejects it
+  // with an opaque 401. Both orderings of the mix up are caught.
+  let one = keys()
+  let other = keys()
+
+  assert vapid.vapid_authorization_header(
+      endpoint,
+      "test@example.com",
+      one.public_key_b64url,
+      other.private_key_b64url,
+      expiration,
+    )
+    == Error(vapid.MismatchedKeyPair)
+
+  assert vapid.vapid_authorization_header(
+      endpoint,
+      "test@example.com",
+      other.public_key_b64url,
+      one.private_key_b64url,
+      expiration,
+    )
+    == Error(vapid.MismatchedKeyPair)
+}
+
+pub fn structurally_valid_but_unusable_private_key_is_rejected_test() {
+  // 32 bytes, so the size check passes, but not a usable scalar.
+  let keys = keys()
+
+  let assert Error(_) =
+    vapid.vapid_authorization_header(
+      endpoint,
+      "test@example.com",
+      keys.public_key_b64url,
+      bit_array.base64_url_encode(<<0:size(256)>>, False),
+      expiration,
+    )
+}
+
 pub fn now_unix_is_in_seconds_test() {
   let now = vapid.now_unix()
 

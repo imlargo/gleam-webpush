@@ -263,6 +263,46 @@ pub fn public_key_off_the_curve_is_a_crypto_error_test() {
     push.send_notification(<<"hi">>, subscription, options())
 }
 
+/// The worked example from RFC 8291 section 5, verbatim.
+const rfc8291_receiver_public = "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4"
+
+const rfc8291_receiver_private = "q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94"
+
+const rfc8291_auth_secret = "BTBZMqHH6r4Tts7J_aSIgg"
+
+const rfc8291_body = "DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN"
+
+const rfc8291_plaintext = "When I grow up, I want to be a watermelon"
+
+/// Decrypting the payload published in the RFC proves the key derivation
+/// matches the specification, rather than merely being self consistent.
+pub fn rfc8291_test_vector_decrypts_test() {
+  let assert Ok(body) = bit_array.base64_url_decode(rfc8291_body)
+  let assert Ok(private_key) =
+    bit_array.base64_url_decode(rfc8291_receiver_private)
+  let assert Ok(public_key) =
+    bit_array.base64_url_decode(rfc8291_receiver_public)
+  let assert Ok(auth) = bit_array.base64_url_decode(rfc8291_auth_secret)
+
+  assert decrypt(body, private_key, public_key, auth)
+    == Ok(bit_array.from_string(rfc8291_plaintext))
+}
+
+/// With the decryption above pinned to the RFC, encrypting and reading the
+/// result back shows this library produces what the specification describes.
+pub fn payload_encrypted_for_the_rfc_receiver_round_trips_test() {
+  let assert Ok(private_key) =
+    bit_array.base64_url_decode(rfc8291_receiver_private)
+  let assert Ok(public_key) =
+    bit_array.base64_url_decode(rfc8291_receiver_public)
+  let assert Ok(auth) = bit_array.base64_url_decode(rfc8291_auth_secret)
+  let message = bit_array.from_string(rfc8291_plaintext)
+
+  let assert Ok(body) = encrypt_payload(message, public_key, auth, 4096)
+
+  assert decrypt(body, private_key, public_key, auth) == Ok(message)
+}
+
 pub fn errors_describe_themselves_test() {
   assert push.push_error_to_string(push.DecodeKeyError)
     == "Failed to decode key"
