@@ -37,6 +37,10 @@ Requires Erlang/OTP 27 or later.
   `InvalidSubscriber`.
 - A failed request reported `HttpError("http error")`, discarding everything
   the HTTP client said about the failure. The underlying error is now included.
+- A private key from a different pair than the public key still produced a
+  header, because Erlang's crypto signs with any 32 byte value. Mismatched
+  pairs now fail as `MismatchedKeyPair` rather than as an opaque 401 from the
+  push service.
 
 ### Removed
 
@@ -46,6 +50,8 @@ Requires Erlang/OTP 27 or later.
 
 - `push.max_payload_size`, the largest message that fits in a record of a given
   size. With the default record size the limit is 3993 bytes.
+- The worked example from RFC 8291 section 5 as a test, so the key derivation
+  is checked against the specification rather than only against itself.
 - A test suite covering VAPID key generation, JWT signing and payload
   encryption. Signatures are verified with OTP's ECDSA and payloads are
   decrypted with an independent implementation of the receiving side, rather
