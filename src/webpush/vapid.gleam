@@ -8,12 +8,10 @@ import gleam/uri
 ///
 /// - `InvalidEndpoint(String)`: Indicates that the provided endpoint is invalid.
 /// - `DecodeKeyError`: Occurs when decoding a cryptographic key fails.
-/// - `UnknownError(String)`: Represents an unspecified error with a message.
 /// - `CryptoError(String)`: Represents an error related to cryptographic operations.
 pub type VapidError {
   InvalidEndpoint(String)
   DecodeKeyError
-  UnknownError(String)
   CryptoError(String)
 }
 
@@ -28,13 +26,11 @@ pub type VapidError {
 /// # Error Variants
 /// - `InvalidEndpoint(endpoint)`: Indicates an invalid endpoint, includes the endpoint string.
 /// - `DecodeKeyError`: Indicates a failure to decode the VAPID key.
-/// - `UnknownError(msg)`: Represents an unknown error with a message.
 /// - `CryptoError(msg)`: Represents a cryptographic error with a message.
 pub fn vapid_error_to_string(error: VapidError) -> String {
   case error {
     InvalidEndpoint(endpoint) -> "Invalid endpoint: " <> endpoint
     DecodeKeyError -> "Failed to decode VAPID key"
-    UnknownError(msg) -> "Unknown VAPID error: " <> msg
     CryptoError(msg) -> "VAPID crypto error: " <> msg
   }
 }
@@ -198,17 +194,10 @@ fn extract_audience(
   }
 }
 
-/// Decodes a VAPID key from a base64 or base64 URL encoded string.
-/// 
-/// Attempts to decode the given string using base64 URL decoding first.
-/// If that fails, it falls back to standard base64 decoding.
-/// 
-/// Returns `Ok(BitArray)` if decoding is successful, or `Error(Nil)` if both decoding attempts fail.
-/// 
-/// - `b64`: The base64 or base64 URL encoded string representing the VAPID key.
+/// Decodes a VAPID key from a base64 string.
+///
+/// Accepts either alphabet, padded or not: `base64_url_decode` maps the URL
+/// safe characters onto the standard ones and restores any missing padding.
 pub fn decode_vapid_key(b64: String) -> Result(BitArray, Nil) {
-  case bit_array.base64_url_decode(b64) {
-    Ok(b) -> Ok(b)
-    Error(_) -> bit_array.base64_decode(b64)
-  }
+  bit_array.base64_url_decode(b64)
 }

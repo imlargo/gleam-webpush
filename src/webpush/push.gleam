@@ -6,7 +6,6 @@ import gleam/httpc
 import gleam/int
 import gleam/option
 import gleam/result
-import gleam/string
 import webpush/urgency
 import webpush/vapid
 
@@ -245,24 +244,12 @@ fn check_payload_size(
   }
 }
 
-/// Decodes a base64 or base64url-encoded subscription key string into a `BitArray`.
-/// The function first attempts standard base64 decoding, and if that fails,
-/// it tries base64url decoding. Padding is added if necessary to ensure the input
-/// length is a multiple of 4. Returns `Ok(BitArray)` on success, or `Error(PushError)`
-/// if decoding fails.
+/// Decodes a subscription key into a `BitArray`.
+///
+/// Accepts either alphabet, padded or not: `base64_url_decode` maps the URL
+/// safe characters onto the standard ones and restores any missing padding,
+/// which is the unpadded URL safe form browsers actually produce.
 fn decode_subscription_key(b64: String) -> Result(BitArray, PushError) {
-  let padded = case string.length(b64) % 4 {
-    0 -> b64
-    rem -> b64 <> string.repeat("=", 4 - rem)
-  }
-
-  case bit_array.base64_decode(padded) {
-    Ok(b) -> Ok(b)
-    Error(_) -> {
-      case bit_array.base64_url_decode(padded) {
-        Ok(b) -> Ok(b)
-        Error(_) -> Error(DecodeKeyError)
-      }
-    }
-  }
+  bit_array.base64_url_decode(b64)
+  |> result.replace_error(DecodeKeyError)
 }

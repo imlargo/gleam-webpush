@@ -206,6 +206,33 @@ pub fn invalid_endpoint_is_rejected_test() {
     == Error(push.VapidHeaderError(vapid.InvalidEndpoint("not-a-url")))
 }
 
+pub fn subscription_keys_decode_in_either_alphabet_test() {
+  // Reaching the VAPID stage proves both keys decoded and the public key
+  // passed validation; a decoding failure would report DecodeKeyError.
+  let recipient = recipient()
+  let standard =
+    push.Subscription(
+      endpoint: "not-a-url",
+      keys: push.Keys(
+        auth: bit_array.base64_encode(auth_secret, True),
+        p256dh: bit_array.base64_encode(recipient.public_key, True),
+      ),
+    )
+  let url_safe =
+    push.Subscription(
+      endpoint: "not-a-url",
+      keys: push.Keys(
+        auth: bit_array.base64_url_encode(auth_secret, False),
+        p256dh: bit_array.base64_url_encode(recipient.public_key, False),
+      ),
+    )
+  let expected =
+    Error(push.VapidHeaderError(vapid.InvalidEndpoint("not-a-url")))
+
+  assert push.send_notification(<<"hi">>, standard, options()) == expected
+  assert push.send_notification(<<"hi">>, url_safe, options()) == expected
+}
+
 pub fn errors_describe_themselves_test() {
   assert push.push_error_to_string(push.DecodeKeyError)
     == "Failed to decode key"

@@ -155,6 +155,23 @@ pub fn undecodable_key_is_rejected_test() {
     == Error(vapid.DecodeKeyError)
 }
 
+pub fn keys_decode_in_either_alphabet_padded_or_not_test() {
+  // A value whose standard encoding uses both `+` and `/`, so the two
+  // alphabets genuinely differ.
+  let raw = <<4, 251, 255, 62, 63, 190, 0:size(472)>>
+
+  assert vapid.decode_vapid_key(bit_array.base64_encode(raw, True)) == Ok(raw)
+  assert vapid.decode_vapid_key(bit_array.base64_encode(raw, False)) == Ok(raw)
+  assert vapid.decode_vapid_key(bit_array.base64_url_encode(raw, True))
+    == Ok(raw)
+  assert vapid.decode_vapid_key(bit_array.base64_url_encode(raw, False))
+    == Ok(raw)
+}
+
+pub fn undecodable_vapid_key_is_an_error_test() {
+  assert vapid.decode_vapid_key("not base64!") == Error(Nil)
+}
+
 pub fn now_unix_is_in_seconds_test() {
   let now = vapid.now_unix()
 
