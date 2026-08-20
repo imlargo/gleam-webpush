@@ -14,6 +14,7 @@ import gleam/uri
 /// - `DecodeKeyError`: Occurs when decoding a cryptographic key fails.
 /// - `InvalidPrivateKey(Int)`: The private key is not the 32 byte P-256 scalar.
 /// - `InvalidPublicKey(Int)`: The public key is not a 65 byte uncompressed point.
+/// - `MismatchedKeyPair`: The public key does not belong to the private key.
 /// - `CryptoError(String)`: Represents an error related to cryptographic operations.
 pub type VapidError {
   InvalidEndpoint(String)
@@ -21,6 +22,7 @@ pub type VapidError {
   DecodeKeyError
   InvalidPrivateKey(Int)
   InvalidPublicKey(Int)
+  MismatchedKeyPair
   CryptoError(String)
 }
 
@@ -45,6 +47,7 @@ pub fn vapid_error_to_string(error: VapidError) -> String {
       <> int.to_string(size)
     InvalidPublicKey(size) ->
       "Invalid VAPID public key: expected 65 bytes, got " <> int.to_string(size)
+    MismatchedKeyPair -> "VAPID public key does not belong to the private key"
     CryptoError(msg) -> "VAPID crypto error: " <> msg
   }
 }
@@ -81,6 +84,9 @@ fn p256_generate_key() -> Result(#(BitArray, BitArray), String)
 /// # Returns
 /// - `Result(String, String)`: On success, returns the signed JWT as a string.
 ///   On failure, returns an error message.
+@external(erlang, "webpush_vapid_ffi", "p256_public_key")
+fn p256_public_key(private_key: BitArray) -> Result(BitArray, String)
+
 @external(erlang, "webpush_vapid_ffi", "jwt_es256_sign")
 fn jwt_es256_sign(
   aud: String,
@@ -146,6 +152,7 @@ pub fn vapid_authorization_header(
   use sub <- result.try(normalize_subscriber(subscriber))
   use priv <- result.try(decode_private_key(vapid_private_key_b64url))
   use pub_bytes <- result.try(decode_public_key(vapid_public_key_b64url))
+  use Nil <- result.try(check_key_pair(priv, pub_bytes))
 
   use jwt <- result.try(
     jwt_es256_sign(aud, expiration_unix, sub, priv)
@@ -179,6 +186,24 @@ fn decode_private_key(b64: String) -> Result(BitArray, VapidError) {
   case key {
     <<_:bytes-size(32)>> -> Ok(key)
     _ -> Error(InvalidPrivateKey(bit_array.byte_size(key)))
+  }
+}
+
+/// Erlang's crypto signs with any 32 byte value, so a private key that is not
+/// the one the public key belongs to still yields a token, which the push
+/// service then rejects with an opaque 401. Deriving the public key from the
+/// private one catches a swapped or mismatched pair before signing.
+fn check_key_pair(
+  private_key: BitArray,
+  public_key: BitArray,
+) -> Result(Nil, VapidError) {
+  use derived <- result.try(
+    p256_public_key(private_key) |> result.map_error(CryptoError),
+  )
+
+  case derived == public_key {
+    True -> Ok(Nil)
+    False -> Error(MismatchedKeyPair)
   }
 }
 

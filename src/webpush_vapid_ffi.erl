@@ -3,7 +3,7 @@
 %% Requires: crypto, public_key and the built in json module (OTP 27+)
 -module(webpush_vapid_ffi).
 
--export([p256_generate_key/0, jwt_es256_sign/4, now_unix/0]).
+-export([p256_generate_key/0, p256_public_key/1, jwt_es256_sign/4, now_unix/0]).
 
 %%--------------------------------------------------------------------
 %% Types (for dialyzer/help)
@@ -33,6 +33,21 @@ p256_generate_key() ->
   try
     {Pub, Priv} = crypto:generate_key(ecdh, prime256v1),
     {ok, {Priv, Pub}}
+  catch
+    C:R ->
+      Reason = unicode:characters_to_binary(io_lib:format("~p:~p", [C, R])),
+      {error, Reason}
+  end.
+
+%%--------------------------------------------------------------------
+%% Derive the public key belonging to a private key, so that a mismatched or
+%% otherwise unusable key pair can be rejected before anything is signed.
+%%--------------------------------------------------------------------
+-spec p256_public_key(binary()) -> {ok, binary()} | {error, binary()}.
+p256_public_key(Priv) ->
+  try
+    {Pub, _} = crypto:generate_key(ecdh, prime256v1, Priv),
+    {ok, Pub}
   catch
     C:R ->
       Reason = unicode:characters_to_binary(io_lib:format("~p:~p", [C, R])),
