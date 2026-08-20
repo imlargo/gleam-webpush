@@ -13,6 +13,15 @@ import webpush/vapid
 /// The maximum allowed size for a record in bytes.
 pub const max_record_size: Int = 4096
 
+/// Bytes of a record spent on framing rather than the message: the 86 byte
+/// RFC 8188 header, the 0x02 delimiter and the 16 byte authentication tag.
+const record_overhead: Int = 103
+
+/// The largest message, in bytes, that fits in a record of the given size.
+pub fn max_payload_size(record_size: Int) -> Int {
+  record_size - record_overhead
+}
+
 /// Represents the cryptographic keys used for authentication and encryption in a push subscription.
 /// - `auth`: The authentication secret as a base64url-encoded string.
 /// - `p256dh`: The user's public key as a base64url-encoded string.
@@ -138,10 +147,12 @@ pub fn send_notification(
   use auth_secret <- result.try(decode_subscription_key(sub.keys.auth))
   use peer_pub <- result.try(decode_subscription_key(sub.keys.p256dh))
 
-  // Verify uncompressed point (0x04 | X | Y)
-  let valid_pub =
-    bit_array.byte_size(peer_pub) >= 65
-    && bit_array.slice(peer_pub, 0, 1) == Ok(bit_array.from_string("\u{04}"))
+  // An uncompressed P-256 point is exactly 0x04 followed by the 32 byte X and
+  // Y coordinates.
+  let valid_pub = case peer_pub {
+    <<4, _:bytes-size(64)>> -> True
+    _ -> False
+  }
 
   case valid_pub {
     False -> Error(InvalidPeerPublicKey)
@@ -151,6 +162,8 @@ pub fn send_notification(
         option.Some(n) -> n
         option.None -> max_record_size
       }
+
+      use Nil <- result.try(check_payload_size(message, record_size))
 
       use body <- result.try(
         encrypt_payload(message, peer_pub, auth_secret, record_size)
@@ -191,10 +204,8 @@ pub fn send_notification(
         |> request.set_header("authorization", auth_header)
         |> request.set_body(body)
 
-      case httpc.send_bits(req) {
-        Ok(resp) -> Ok(resp)
-        Error(_) -> Error(HttpError("http error"))
-      }
+      httpc.send_bits(req)
+      |> result.map_error(fn(error) { HttpError(string.inspect(error)) })
     }
   }
 }
@@ -220,24 +231,24 @@ fn set_urgency(
   }
 }
 
-/// Decodes a base64 or base64url-encoded subscription key string into a `BitArray`.
-/// The function first attempts standard base64 decoding, and if that fails,
-/// it tries base64url decoding. Padding is added if necessary to ensure the input
-/// length is a multiple of 4. Returns `Ok(BitArray)` on success, or `Error(PushError)`
-/// if decoding fails.
-fn decode_subscription_key(b64: String) -> Result(BitArray, PushError) {
-  let padded = case string.length(b64) % 4 {
-    0 -> b64
-    rem -> b64 <> string.repeat("=", 4 - rem)
+/// The whole message has to fit in a single record, so check it here rather
+/// than letting the FFI fail with a less specific error.
+fn check_payload_size(
+  message: BitArray,
+  record_size: Int,
+) -> Result(Nil, PushError) {
+  case bit_array.byte_size(message) <= max_payload_size(record_size) {
+    True -> Ok(Nil)
+    False -> Error(MaxPadExceeded)
   }
+}
 
-  case bit_array.base64_decode(padded) {
-    Ok(b) -> Ok(b)
-    Error(_) -> {
-      case bit_array.base64_url_decode(padded) {
-        Ok(b) -> Ok(b)
-        Error(_) -> Error(DecodeKeyError)
-      }
-    }
-  }
+/// Decodes a subscription key into a `BitArray`.
+///
+/// Accepts either alphabet, padded or not: `base64_url_decode` maps the URL
+/// safe characters onto the standard ones and restores any missing padding,
+/// which is the unpadded URL safe form browsers actually produce.
+fn decode_subscription_key(b64: String) -> Result(BitArray, PushError) {
+  bit_array.base64_url_decode(b64)
+  |> result.replace_error(DecodeKeyError)
 }

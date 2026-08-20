@@ -2,7 +2,7 @@
 
 [![Package Version](https://img.shields.io/hexpm/v/webpush)](https://hex.pm/packages/webpush)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/webpush/)
-[![License](https://img.shields.io/hexpm/l/webpush.svg)](https://github.com/your-username/gleam_webpush/blob/main/LICENSE)
+[![License](https://img.shields.io/hexpm/l/webpush.svg)](https://github.com/imlargo/gleam-webpush/blob/main/LICENSE)
 
 The **first** and **complete** Web Push notification library for Gleam! 🎉
 
@@ -10,19 +10,15 @@ Send encrypted push notifications to web browsers using the Web Push Protocol (R
 
 ## Current Status
 
-#### ✅ Working features:
+- Sends encrypted notifications to any Web Push service (RFC 8291)
+- VAPID key generation and ES256 JWT signing (RFC 8292)
+- No external dependencies: only Erlang/OTP's own `crypto` and `public_key`
+- Covered by a test suite that verifies the JWT signature and decrypts the
+  payload with an independent implementation of the receiving side, run on CI
+  against OTP 27, 28 and 29
 
-- Basic Web Push notification sending
-- VAPID key generation and management
-- Tested and working with real notifications
-
-#### ⚠️ Work in progress:
-
-- Adding comprehensive test coverage
-- Improving documentation and examples
-- Continuous improvements and refinements
-
->  Note: This library is not yet production-ready but is functional for basic use cases. I'm actively working on improvements and would appreciate feedback from the community. Also i'm relatively new to Gleam and still learning the language, so if anyone notices areas for improvement in the code, feedback would be very welcome! I'm committed to continuously improving this library.
+> Feedback and contributions are very welcome. If you spot something that could
+> be done better, please open an issue or a pull request.
 
 ## ✨ Features
 
@@ -31,7 +27,7 @@ Send encrypted push notifications to web browsers using the Web Push Protocol (R
 - 🎯 **Complete Web Push API** support (TTL, urgency, topics)
 - 🛡️ **Type-safe error handling** with comprehensive error types
 - ⚡ **High performance** with Erlang FFI for cryptographic operations
-- 📦 **Zero external dependencies** (uses built-in Erlang crypto)
+- 📦 **No Erlang dependencies** (cryptography comes from OTP's own `crypto` and `public_key`)
 - 🔧 **Easy to use** with sensible defaults
 
 ## 🚀 Quick Start
@@ -41,8 +37,13 @@ Send encrypted push notifications to web browsers using the Web Push Protocol (R
 Add `webpush` to your project:
 
 ```sh
-gleam add webpush@1
+gleam add webpush@2
 ```
+
+### Requirements
+
+- Gleam 1.11 or later
+- Erlang/OTP 27 or later
 
 ### Basic Usage
 
@@ -160,8 +161,8 @@ The Gleam layer provides type safety and ergonomic APIs while leveraging Erlang'
 ## Development
 
 ```sh
-gleam run   # Run the project
-gleam test  # Run the tests
+gleam test        # Run the tests
+gleam docs build  # Build the documentation
 ```
 
 ## 🤝 Contributing

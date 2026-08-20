@@ -2,3 +2,8 @@
 *.ez
 /build
 erl_crash.dump
+
+# The examples depend on the library by path, so this lock file pins the
+# version in ../gleam.toml and goes stale on every release. Resolve fresh
+# instead.
+manifest.toml

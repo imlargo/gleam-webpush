@@ -1,4 +1,5 @@
 import gleam/bit_array
+import gleam/int
 import gleam/option
 import gleam/result
 import gleam/string
@@ -6,14 +7,22 @@ import gleam/uri
 
 /// Represents possible errors that can occur during VAPID operations.
 ///
-/// - `InvalidEndpoint(String)`: Indicates that the provided endpoint is invalid.
+/// - `InvalidEndpoint(String)`: The endpoint has no scheme and host to derive
+///   the JWT audience from.
+/// - `InvalidSubscriber(String)`: The contact is empty. RFC 8292 requires a
+///   `mailto:` or `https:` URI the push service operator can reach.
 /// - `DecodeKeyError`: Occurs when decoding a cryptographic key fails.
-/// - `UnknownError(String)`: Represents an unspecified error with a message.
+/// - `InvalidPrivateKey(Int)`: The private key is not the 32 byte P-256 scalar.
+/// - `InvalidPublicKey(Int)`: The public key is not a 65 byte uncompressed point.
+/// - `MismatchedKeyPair`: The public key does not belong to the private key.
 /// - `CryptoError(String)`: Represents an error related to cryptographic operations.
 pub type VapidError {
   InvalidEndpoint(String)
+  InvalidSubscriber(String)
   DecodeKeyError
-  UnknownError(String)
+  InvalidPrivateKey(Int)
+  InvalidPublicKey(Int)
+  MismatchedKeyPair
   CryptoError(String)
 }
 
@@ -26,15 +35,19 @@ pub type VapidError {
 /// A descriptive string representing the error type and details.
 ///
 /// # Error Variants
-/// - `InvalidEndpoint(endpoint)`: Indicates an invalid endpoint, includes the endpoint string.
-/// - `DecodeKeyError`: Indicates a failure to decode the VAPID key.
-/// - `UnknownError(msg)`: Represents an unknown error with a message.
-/// - `CryptoError(msg)`: Represents a cryptographic error with a message.
 pub fn vapid_error_to_string(error: VapidError) -> String {
   case error {
     InvalidEndpoint(endpoint) -> "Invalid endpoint: " <> endpoint
+    InvalidSubscriber(subscriber) ->
+      "Invalid subscriber, expected an email or a mailto:/https: URI, got: "
+      <> subscriber
     DecodeKeyError -> "Failed to decode VAPID key"
-    UnknownError(msg) -> "Unknown VAPID error: " <> msg
+    InvalidPrivateKey(size) ->
+      "Invalid VAPID private key: expected 32 bytes, got "
+      <> int.to_string(size)
+    InvalidPublicKey(size) ->
+      "Invalid VAPID public key: expected 65 bytes, got " <> int.to_string(size)
+    MismatchedKeyPair -> "VAPID public key does not belong to the private key"
     CryptoError(msg) -> "VAPID crypto error: " <> msg
   }
 }
@@ -71,6 +84,9 @@ fn p256_generate_key() -> Result(#(BitArray, BitArray), String)
 /// # Returns
 /// - `Result(String, String)`: On success, returns the signed JWT as a string.
 ///   On failure, returns an error message.
+@external(erlang, "webpush_vapid_ffi", "p256_public_key")
+fn p256_public_key(private_key: BitArray) -> Result(BitArray, String)
+
 @external(erlang, "webpush_vapid_ffi", "jwt_es256_sign")
 fn jwt_es256_sign(
   aud: String,
@@ -120,8 +136,6 @@ pub fn generate_vapid_keys() -> Result(VapidKeys, VapidError) {
 /// Returns:
 /// - `Result(String, VapidError)`: On success, returns the header value as a string.
 ///   On failure, returns a `VapidError` describing the error.
-/// Produce the `Authorization` header value for Web Push (VAPID).
-/// Returns: `vapid t=<jwt>, k=<base64url(pub)>`.
 pub fn vapid_authorization_header(
   endpoint: String,
   subscriber: String,
@@ -135,21 +149,10 @@ pub fn vapid_authorization_header(
 
   use aud <- result.try(extract_audience(url.scheme, url.host, endpoint))
 
-  //) Normalize subscriber
-  let sub = case string.starts_with(subscriber, "https:") {
-    True -> subscriber
-    False -> "mailto:" <> subscriber
-  }
-
-  use priv <- result.try(
-    decode_vapid_key(vapid_private_key_b64url)
-    |> result.map_error(fn(_) { DecodeKeyError }),
-  )
-
-  use pub_bytes <- result.try(
-    decode_vapid_key(vapid_public_key_b64url)
-    |> result.map_error(fn(_) { DecodeKeyError }),
-  )
+  use sub <- result.try(normalize_subscriber(subscriber))
+  use priv <- result.try(decode_private_key(vapid_private_key_b64url))
+  use pub_bytes <- result.try(decode_public_key(vapid_public_key_b64url))
+  use Nil <- result.try(check_key_pair(priv, pub_bytes))
 
   use jwt <- result.try(
     jwt_es256_sign(aud, expiration_unix, sub, priv)
@@ -158,6 +161,67 @@ pub fn vapid_authorization_header(
 
   let pub_b64 = bit_array.base64_url_encode(pub_bytes, False)
   Ok("vapid t=" <> jwt <> ", k=" <> pub_b64)
+}
+
+/// RFC 8292 requires the `sub` claim to be a URI, but a bare email address is
+/// the natural thing to pass, so the scheme is only added when absent.
+fn normalize_subscriber(subscriber: String) -> Result(String, VapidError) {
+  case string.trim(subscriber) {
+    "" -> Error(InvalidSubscriber(subscriber))
+    trimmed ->
+      case has_scheme(trimmed) {
+        True -> Ok(trimmed)
+        False -> Ok("mailto:" <> trimmed)
+      }
+  }
+}
+
+/// Erlang's crypto signs with a private key of any length, producing a token no
+/// push service can verify, so the size is checked rather than trusted.
+fn decode_private_key(b64: String) -> Result(BitArray, VapidError) {
+  use key <- result.try(
+    decode_vapid_key(b64) |> result.map_error(fn(_) { DecodeKeyError }),
+  )
+
+  case key {
+    <<_:bytes-size(32)>> -> Ok(key)
+    _ -> Error(InvalidPrivateKey(bit_array.byte_size(key)))
+  }
+}
+
+/// Erlang's crypto signs with any 32 byte value, so a private key that is not
+/// the one the public key belongs to still yields a token, which the push
+/// service then rejects with an opaque 401. Deriving the public key from the
+/// private one catches a swapped or mismatched pair before signing.
+fn check_key_pair(
+  private_key: BitArray,
+  public_key: BitArray,
+) -> Result(Nil, VapidError) {
+  use derived <- result.try(
+    p256_public_key(private_key) |> result.map_error(CryptoError),
+  )
+
+  case derived == public_key {
+    True -> Ok(Nil)
+    False -> Error(MismatchedKeyPair)
+  }
+}
+
+fn decode_public_key(b64: String) -> Result(BitArray, VapidError) {
+  use key <- result.try(
+    decode_vapid_key(b64) |> result.map_error(fn(_) { DecodeKeyError }),
+  )
+
+  case key {
+    <<4, _:bytes-size(64)>> -> Ok(key)
+    _ -> Error(InvalidPublicKey(bit_array.byte_size(key)))
+  }
+}
+
+fn has_scheme(subscriber: String) -> Bool {
+  string.starts_with(subscriber, "mailto:")
+  || string.starts_with(subscriber, "https:")
+  || string.starts_with(subscriber, "http:")
 }
 
 /// Extracts the audience (origin) from the given scheme and host options.
@@ -182,22 +246,15 @@ fn extract_audience(
   endpoint: String,
 ) -> Result(String, VapidError) {
   case scheme, host {
-    option.Some(s), option.Some(h) -> Ok(string.concat([s, "://", h]))
+    option.Some(s), option.Some(h) if h != "" -> Ok(string.concat([s, "://", h]))
     _, _ -> Error(InvalidEndpoint(endpoint))
   }
 }
 
-/// Decodes a VAPID key from a base64 or base64 URL encoded string.
-/// 
-/// Attempts to decode the given string using base64 URL decoding first.
-/// If that fails, it falls back to standard base64 decoding.
-/// 
-/// Returns `Ok(BitArray)` if decoding is successful, or `Error(Nil)` if both decoding attempts fail.
-/// 
-/// - `b64`: The base64 or base64 URL encoded string representing the VAPID key.
+/// Decodes a VAPID key from a base64 string.
+///
+/// Accepts either alphabet, padded or not: `base64_url_decode` maps the URL
+/// safe characters onto the standard ones and restores any missing padding.
 pub fn decode_vapid_key(b64: String) -> Result(BitArray, Nil) {
-  case bit_array.base64_url_decode(b64) {
-    Ok(b) -> Ok(b)
-    Error(_) -> bit_array.base64_decode(b64)
-  }
+  bit_array.base64_url_decode(b64)
 }
