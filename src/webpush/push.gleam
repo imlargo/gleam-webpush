@@ -13,6 +13,15 @@ import webpush/vapid
 /// The maximum allowed size for a record in bytes.
 pub const max_record_size: Int = 4096
 
+/// Bytes of a record spent on framing rather than the message: the 86 byte
+/// RFC 8188 header, the 0x02 delimiter and the 16 byte authentication tag.
+const record_overhead: Int = 103
+
+/// The largest message, in bytes, that fits in a record of the given size.
+pub fn max_payload_size(record_size: Int) -> Int {
+  record_size - record_overhead
+}
+
 /// Represents the cryptographic keys used for authentication and encryption in a push subscription.
 /// - `auth`: The authentication secret as a base64url-encoded string.
 /// - `p256dh`: The user's public key as a base64url-encoded string.
@@ -154,6 +163,8 @@ pub fn send_notification(
         option.None -> max_record_size
       }
 
+      use Nil <- result.try(check_payload_size(message, record_size))
+
       use body <- result.try(
         encrypt_payload(message, peer_pub, auth_secret, record_size)
         |> result.map_error(CryptoError),
@@ -219,6 +230,18 @@ fn set_urgency(
     option.Some(val) ->
       request.set_header(req, "urgency", urgency.to_string(val))
     option.None -> req
+  }
+}
+
+/// The whole message has to fit in a single record, so check it here rather
+/// than letting the FFI fail with a less specific error.
+fn check_payload_size(
+  message: BitArray,
+  record_size: Int,
+) -> Result(Nil, PushError) {
+  case bit_array.byte_size(message) <= max_payload_size(record_size) {
+    True -> Ok(Nil)
+    False -> Error(MaxPadExceeded)
   }
 }
 

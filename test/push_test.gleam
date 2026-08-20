@@ -175,6 +175,22 @@ pub fn oversized_public_key_is_rejected_test() {
     == Error(push.InvalidPeerPublicKey)
 }
 
+pub fn oversized_payload_reports_max_pad_exceeded_test() {
+  let recipient = recipient()
+  let subscription =
+    push.Subscription(
+      endpoint: endpoint,
+      keys: push.Keys(
+        auth: bit_array.base64_url_encode(auth_secret, False),
+        p256dh: bit_array.base64_url_encode(recipient.public_key, False),
+      ),
+    )
+  let message = bit_array.from_string(string.repeat("a", 3994))
+
+  assert push.send_notification(message, subscription, options())
+    == Error(push.MaxPadExceeded)
+}
+
 pub fn invalid_endpoint_is_rejected_test() {
   let recipient = recipient()
   let subscription =
