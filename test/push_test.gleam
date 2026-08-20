@@ -233,6 +233,36 @@ pub fn subscription_keys_decode_in_either_alphabet_test() {
   assert push.send_notification(<<"hi">>, url_safe, options()) == expected
 }
 
+pub fn max_payload_size_matches_the_encryption_limit_test() {
+  // Ties the exported limit to what the encryption actually accepts, so the
+  // two cannot drift apart.
+  let recipient = recipient()
+  let max = push.max_payload_size(push.max_record_size)
+  let fill = fn(size) { bit_array.from_string(string.repeat("a", size)) }
+
+  assert max == 3993
+  let assert Ok(_) =
+    encrypt_payload(fill(max), recipient.public_key, auth_secret, 4096)
+  let assert Error(_) =
+    encrypt_payload(fill(max + 1), recipient.public_key, auth_secret, 4096)
+}
+
+pub fn public_key_off_the_curve_is_a_crypto_error_test() {
+  // 65 bytes with the right prefix, so it passes the shape check, but not a
+  // point on P-256.
+  let subscription =
+    push.Subscription(
+      endpoint: endpoint,
+      keys: push.Keys(
+        auth: bit_array.base64_url_encode(auth_secret, False),
+        p256dh: bit_array.base64_url_encode(<<4, 0:size(512)>>, False),
+      ),
+    )
+
+  let assert Error(push.CryptoError(_)) =
+    push.send_notification(<<"hi">>, subscription, options())
+}
+
 pub fn errors_describe_themselves_test() {
   assert push.push_error_to_string(push.DecodeKeyError)
     == "Failed to decode key"

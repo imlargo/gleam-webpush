@@ -27,7 +27,7 @@ Send encrypted push notifications to web browsers using the Web Push Protocol (R
 - 🎯 **Complete Web Push API** support (TTL, urgency, topics)
 - 🛡️ **Type-safe error handling** with comprehensive error types
 - ⚡ **High performance** with Erlang FFI for cryptographic operations
-- 📦 **Zero external dependencies** (uses built-in Erlang crypto)
+- 📦 **No Erlang dependencies** (cryptography comes from OTP's own `crypto` and `public_key`)
 - 🔧 **Easy to use** with sensible defaults
 
 ## 🚀 Quick Start

@@ -29,6 +29,15 @@ Requires Erlang/OTP 27 or later.
   message too large for the record surfaced as
   `CryptoError("payload has exceeded the maximum length")` instead.
 
+- The VAPID key sizes, the endpoint host and the subscriber were never
+  validated, so a truncated private key, an endpoint such as `https://` or an
+  empty contact all produced a well formed but unusable token that push
+  services reject with an opaque 401. These now fail up front as
+  `InvalidPrivateKey`, `InvalidPublicKey`, `InvalidEndpoint` and
+  `InvalidSubscriber`.
+- A failed request reported `HttpError("http error")`, discarding everything
+  the HTTP client said about the failure. The underlying error is now included.
+
 ### Removed
 
 - `VapidError.UnknownError`, which was never constructed.

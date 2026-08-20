@@ -6,6 +6,7 @@ import gleam/httpc
 import gleam/int
 import gleam/option
 import gleam/result
+import gleam/string
 import webpush/urgency
 import webpush/vapid
 
@@ -203,10 +204,8 @@ pub fn send_notification(
         |> request.set_header("authorization", auth_header)
         |> request.set_body(body)
 
-      case httpc.send_bits(req) {
-        Ok(resp) -> Ok(resp)
-        Error(_) -> Error(HttpError("http error"))
-      }
+      httpc.send_bits(req)
+      |> result.map_error(fn(error) { HttpError(string.inspect(error)) })
     }
   }
 }

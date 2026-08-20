@@ -172,6 +172,68 @@ pub fn undecodable_vapid_key_is_an_error_test() {
   assert vapid.decode_vapid_key("not base64!") == Error(Nil)
 }
 
+pub fn wrong_sized_private_key_is_rejected_test() {
+  // Erlang's crypto signs with a key of any length, so without this check the
+  // library hands back a token that no push service can verify.
+  let keys = keys()
+
+  assert vapid.vapid_authorization_header(
+      endpoint,
+      "test@example.com",
+      keys.public_key_b64url,
+      bit_array.base64_url_encode(<<1, 2, 3>>, False),
+      expiration,
+    )
+    == Error(vapid.InvalidPrivateKey(3))
+}
+
+pub fn wrong_sized_public_key_is_rejected_test() {
+  let keys = keys()
+
+  assert vapid.vapid_authorization_header(
+      endpoint,
+      "test@example.com",
+      bit_array.base64_url_encode(<<1, 2, 3>>, False),
+      keys.private_key_b64url,
+      expiration,
+    )
+    == Error(vapid.InvalidPublicKey(3))
+}
+
+pub fn empty_subscriber_is_rejected_test() {
+  let keys = keys()
+
+  assert vapid.vapid_authorization_header(
+      endpoint,
+      "   ",
+      keys.public_key_b64url,
+      keys.private_key_b64url,
+      expiration,
+    )
+    == Error(vapid.InvalidSubscriber("   "))
+}
+
+pub fn endpoint_without_a_host_is_rejected_even_with_a_scheme_test() {
+  // uri.parse("https://") yields Some("") for the host, which would produce an
+  // audience of "https://".
+  let keys = keys()
+
+  assert vapid.vapid_authorization_header(
+      "https://",
+      "test@example.com",
+      keys.public_key_b64url,
+      keys.private_key_b64url,
+      expiration,
+    )
+    == Error(vapid.InvalidEndpoint("https://"))
+}
+
+pub fn subscriber_is_trimmed_test() {
+  let assert Ok(claims) = part(header_for("  test@example.com  "), 1)
+
+  assert field(claims, "sub", decode.string) == Ok("mailto:test@example.com")
+}
+
 pub fn now_unix_is_in_seconds_test() {
   let now = vapid.now_unix()
 
