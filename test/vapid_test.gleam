@@ -91,6 +91,12 @@ pub fn bare_email_gains_a_mailto_scheme_test() {
   assert field(claims, "sub", decode.string) == Ok("mailto:test@example.com")
 }
 
+pub fn existing_mailto_scheme_is_not_repeated_test() {
+  let assert Ok(claims) = part(header_for("mailto:test@example.com"), 1)
+
+  assert field(claims, "sub", decode.string) == Ok("mailto:test@example.com")
+}
+
 pub fn https_subscriber_is_left_alone_test() {
   let assert Ok(claims) = part(header_for("https://example.com/contact"), 1)
 

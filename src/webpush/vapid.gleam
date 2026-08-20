@@ -135,11 +135,7 @@ pub fn vapid_authorization_header(
 
   use aud <- result.try(extract_audience(url.scheme, url.host, endpoint))
 
-  //) Normalize subscriber
-  let sub = case string.starts_with(subscriber, "https:") {
-    True -> subscriber
-    False -> "mailto:" <> subscriber
-  }
+  let sub = normalize_subscriber(subscriber)
 
   use priv <- result.try(
     decode_vapid_key(vapid_private_key_b64url)
@@ -158,6 +154,21 @@ pub fn vapid_authorization_header(
 
   let pub_b64 = bit_array.base64_url_encode(pub_bytes, False)
   Ok("vapid t=" <> jwt <> ", k=" <> pub_b64)
+}
+
+/// RFC 8292 requires the `sub` claim to be a URI, but a bare email address is
+/// the natural thing to pass, so the scheme is only added when absent.
+fn normalize_subscriber(subscriber: String) -> String {
+  case has_scheme(subscriber) {
+    True -> subscriber
+    False -> "mailto:" <> subscriber
+  }
+}
+
+fn has_scheme(subscriber: String) -> Bool {
+  string.starts_with(subscriber, "mailto:")
+  || string.starts_with(subscriber, "https:")
+  || string.starts_with(subscriber, "http:")
 }
 
 /// Extracts the audience (origin) from the given scheme and host options.
